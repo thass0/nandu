@@ -1,0 +1,12 @@
+[package]
+name = "nandu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+logos = "0.12.1"
+
+[dev-dependencies]
+assert_cmd = "2.0.10"
+predicates = "3.0.2"
+assert_fs = "1.0.12"
