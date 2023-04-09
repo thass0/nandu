@@ -12,36 +12,36 @@ type DynResult = Result<(), Box<dyn std::error::Error>>;
 fn nand_stays_nand_as_cli_arg() -> DynResult {
     let mut cmd = Command::cargo_bin("nandu")?;
 
-    cmd.arg("nand(a, b)");
+    cmd.arg("Nand(a, b)");
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("nand(a, b)"));
+        .stdout(predicate::str::contains("Nand(a, b)"));
     Ok(())
 }
 
 #[test]
 fn nand_stays_nand_as_pipe() -> DynResult {
     let file = assert_fs::NamedTempFile::new("nand.txt")?;
-    file.write_str("nand(a, b)")?;
+    file.write_str("Nand(a, b)")?;
 
     let mut cmd = Command::cargo_bin("nandu")?;
     cmd.pipe_stdin(file)?;
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("nand(a, b)"));
+        .stdout(predicate::str::contains("Nand(a, b)"));
     Ok(())
 }
 
 #[test]
 fn cli_args_overwrite_pipe_inputs() -> DynResult {
     let file = assert_fs::NamedTempFile::new("nand.txt")?;
-    file.write_str("xor(a, b)")?;
+    file.write_str("Xor(a, b)")?;
 
     let mut cmd = Command::cargo_bin("nandu")?;
-    cmd.arg("nand(a, b)");
+    cmd.arg("Nand(a, b)");
     cmd.pipe_stdin(file)?;
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("nand(a, b)"));
+        .stdout(predicate::str::contains("Nand(a, b)"));
     Ok(())
 }
