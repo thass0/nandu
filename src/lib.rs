@@ -34,9 +34,11 @@ pub fn translate(input: impl AsRef<str>) -> Result<String> {
 
         let ast = func(&mut lex).unwrap();
 
-        let _nand_ast = to_nand(ast);
+        let nand_ast = to_nand(ast);
 
-        Ok(input.to_owned())
+        let nand_string = to_string(nand_ast);
+
+        Ok(nand_string)
     }
 
     inner(input.as_ref())
@@ -78,6 +80,25 @@ impl Tree {
     }
 }
 
+fn to_string(tree: Tree) -> String {
+    match tree.this {
+        Token::FuncIdent(id) => {
+            let mut buf = format!("{id}(");
+            let mut branches_iter = tree.branches.into_iter();
+            buf.push_str(&to_string(branches_iter.next().expect(
+                "valid parsed functions must contain at least one argument",
+            )));
+            for branch in branches_iter {
+                buf.push_str(&format!(", {}", to_string(branch)));
+            }
+            buf.push_str(")");
+            buf
+        },
+        Token::VarIdent(id) => id,
+        _ => panic!("unexpected token in tree branch"),
+    }
+}
+
 fn to_nand(mut tree: Tree) -> Tree {
     let mut branches = Vec::with_capacity(tree.branches.len());
     for branch in tree.branches.into_iter() {
@@ -94,7 +115,7 @@ fn to_nand(mut tree: Tree) -> Tree {
     {
         tree
     } else {
-        panic!("Unexpected Token")
+        panic!("unexpected token in tree branch")
     }
 }
 
