@@ -4,7 +4,7 @@ use logos::Logos;
 
 type Result<T> = std::result::Result<T, ParseError>;
 
-#[derive(Logos, Debug, Clone, PartialEq)]
+#[derive(Logos, Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     #[token("(")]
     LParen,
@@ -32,7 +32,7 @@ pub fn translate(input: impl AsRef<str>) -> Result<String> {
     fn inner(input: &str) -> Result<String> {
         let mut lex = Token::lexer(input).peekable();
 
-        func(&mut lex).unwrap();
+        let _ast = func(&mut lex).unwrap();
 
         Ok(input.to_owned())
     }
@@ -47,44 +47,69 @@ macro_rules! expect {
         if let $expected = $lex.peek() {
             consume($lex)
         } else {
-            Err(ParseError::UnexpectedToken(
-                $lex.peek().map(|token| token.clone()),
-            ))
+            Err(ParseError::UnexpectedToken($lex.next()))
         }
     };
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Tree {
+    this:     Token,
+    branches: Vec<Tree>,
+}
+
+impl Tree {
+    fn leaf(token: Token) -> Self {
+        Self {
+            this:     token,
+            branches: vec![],
+        }
+    }
+
+    fn new(token: Token, branches: Vec<Tree>) -> Self {
+        Self {
+            this: token,
+            branches,
+        }
+    }
+}
+
 // Start symbol.
 // Rule: `<F> ::= FuncIdent LParen <ArgList> RParen`
-fn func(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<()> {
-    expect!(Some(Token::FuncIdent(_)), lex)?;
+fn func(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
+    let token = expect!(Some(Token::FuncIdent(_)), lex)?;
     expect!(Some(Token::LParen), lex)?;
-    arg_list(lex)?;
+    let args = arg_list(lex)?;
     expect!(Some(Token::RParen), lex)?;
-    Ok(())
+    let tree = Tree::new(token, args);
+    Ok(tree)
 }
 
 // Rule: `<Arg> (Delim <Arg>)*`
-fn arg_list(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<()> {
-    arg(lex)?;
+// In the AST this function is not represented as a node
+// on its own. Instead this function returns all arguments
+// as a list of branches.
+fn arg_list(
+    lex: &mut Peekable<impl Iterator<Item = Token>>,
+) -> Result<Vec<Tree>> {
+    let mut args = vec![];
+    args.push(arg(lex)?);
     while let Some(Token::Delim) = lex.peek() {
         consume(lex)?;
-        arg(lex)?;
+        args.push(arg(lex)?);
     }
-    Ok(())
+    Ok(args)
 }
 
 // Rule: `VarIdent | <F>`
-fn arg(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<()> {
+fn arg(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
     if let Some(Token::VarIdent(_)) = lex.peek() {
-        consume(lex)?;
-        Ok(())
+        let token = consume(lex)?;
+        Ok(Tree::leaf(token))
     } else if let Some(Token::FuncIdent(_)) = lex.peek() {
         func(lex)
     } else {
-        Err(ParseError::UnexpectedToken(
-            lex.peek().map(|token| token.clone()),
-        ))
+        Err(ParseError::UnexpectedToken(lex.next()))
     }
 }
 
@@ -203,5 +228,77 @@ mod tests {
         .into_iter()
         .peekable();
         assert!(func(&mut token_stream).is_ok());
+    }
+
+    #[test]
+    fn parse_simple_ast() {
+        let mut token_stream = [
+            Token::FuncIdent("A".to_owned()),
+            Token::LParen,
+            Token::VarIdent("a".to_owned()),
+            Token::Delim,
+            Token::VarIdent("b".to_owned()),
+            Token::RParen,
+        ]
+        .into_iter()
+        .peekable();
+        let expected_tree = Tree {
+            this:     Token::FuncIdent("A".to_owned()),
+            branches: vec![
+                Tree::leaf(Token::VarIdent("a".to_owned())),
+                Tree::leaf(Token::VarIdent("b".to_owned())),
+            ],
+        };
+        let result_tree = func(&mut token_stream).unwrap();
+        assert_eq!(result_tree, expected_tree);
+    }
+
+    #[test]
+    fn parse_nested_ast() {
+        let mut token_stream = [
+            Token::FuncIdent("A".to_owned()),
+            Token::LParen,
+            Token::FuncIdent("B".to_owned()),
+            Token::LParen,
+            Token::FuncIdent("C".to_owned()),
+            Token::LParen,
+            Token::VarIdent("c".to_string()),
+            Token::RParen,
+            Token::RParen,
+            Token::Delim,
+            Token::VarIdent("a".to_owned()),
+            Token::RParen,
+        ]
+        .into_iter()
+        .peekable();
+        let expected_tree = Tree {
+            this:     Token::FuncIdent("A".to_owned()),
+            branches: vec![
+                Tree {
+                    this:     Token::FuncIdent("B".to_owned()),
+                    branches: vec![Tree {
+                        this:     Token::FuncIdent("C".to_owned()),
+                        branches: vec![Tree::leaf(Token::VarIdent(
+                            "c".to_owned(),
+                        ))],
+                    }],
+                },
+                Tree::leaf(Token::VarIdent("a".to_owned())),
+            ],
+        };
+        let result_tree = func(&mut token_stream).unwrap();
+        assert_eq!(result_tree, expected_tree);
+    }
+
+    #[test]
+    fn tree_leaf_create_tree_without_branches() {
+        // The specific token doesn't matter here.
+        let test_token = Token::VarIdent("blah".to_owned());
+        let automatic_leaf = Tree::leaf(test_token.clone());
+        let manual_leaf = Tree {
+            this:     test_token.clone(),
+            branches: vec![],
+        };
+        assert_eq!(automatic_leaf, manual_leaf);
     }
 }
