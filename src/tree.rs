@@ -35,7 +35,7 @@ pub fn to_string(tree: Tree) -> String {
             for branch in branches_iter {
                 buf.push_str(&format!(", {}", to_string(branch)));
             }
-            buf.push_str(")");
+            buf.push(')');
             buf
         },
         Token::VarIdent(id) => id,
@@ -55,7 +55,7 @@ pub fn to_nand(mut tree: Tree) -> Tree {
     } else if tree.this == Token::FuncIdent("Or".to_owned()) {
         or_to_nand(tree)
     } else if tree.this == Token::FuncIdent("Nand".to_owned())
-        || tree.branches.len() == 0
+        || tree.branches.is_empty()
     {
         tree
     } else {

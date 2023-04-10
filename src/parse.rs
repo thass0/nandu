@@ -22,7 +22,7 @@ macro_rules! expect {
 // this case that `lex.peek` is `None`.
 pub fn start(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
     let tree = func(lex)?;
-    if let None = lex.peek() {
+    if lex.peek().is_none() {
         consume(lex).err();
     } else {
         return Err(ParseError::UnexpectedToken(lex.next()));
