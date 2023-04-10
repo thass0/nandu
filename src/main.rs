@@ -1,22 +1,43 @@
 use std::env;
 use std::io::{self, BufRead};
 
+use atty::Stream;
+
+fn load_stdin() -> io::Result<String> {
+    if atty::is(Stream::Stdin) {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "stdin is not redirected",
+        ));
+    }
+
+    let input = io::stdin()
+        .lock()
+        .lines()
+        .fold("".to_string(), |acc, line| {
+            acc + &line.expect("failed to read line from pipe") + "\n"
+        });
+
+    Ok(input)
+}
+
 fn main() {
     let mut args = env::args();
     args.next().unwrap(); // Ignore own name.
 
     let input = match args.next() {
-        Some(input) => input,
-        None => {
-            let input =
-                io::stdin()
-                    .lock()
-                    .lines()
-                    .fold("".to_string(), |acc, line| {
-                        acc + &line.expect("Failed to read line from pipe")
-                            + "\n"
-                    });
+        Some(input) => {
+            println!("Arg input: {input}");
             input
+        },
+        None => match load_stdin() {
+            Ok(input) => {
+                println!("Pipe input: {input}");
+                input
+            },
+            Err(_) => {
+                std::process::exit(1);
+            },
         },
     };
 
