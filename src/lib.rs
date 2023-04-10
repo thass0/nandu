@@ -28,11 +28,24 @@ pub enum Token {
     LexError,
 }
 
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::LParen => write!(f, "'('"),
+            Self::RParen => write!(f, "')'"),
+            Self::Delim => write!(f, "','"),
+            Self::FuncIdent(id) => write!(f, "function '{id}'"),
+            Self::VarIdent(id) => write!(f, "variable '{id}'"),
+            Self::LexError => write!(f, "lexical error"),
+        }
+    }
+}
+
 pub fn translate(input: impl AsRef<str>) -> Result<String> {
     fn inner(input: &str) -> Result<String> {
         let mut lex = Token::lexer(input).peekable();
 
-        let ast = func(&mut lex).unwrap();
+        let ast = start(&mut lex)?;
 
         let nand_ast = to_nand(ast);
 
@@ -149,6 +162,19 @@ fn nand(args: Vec<Tree>) -> Tree {
 }
 
 // Start symbol.
+// Rule: `<S> ::= <F> end`.
+// `end` means that the input is over, so in
+// this case that `lex.peek` is `None`.
+fn start(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
+    let tree = func(lex)?;
+    if let None = lex.peek() {
+        consume(lex).err();
+    } else {
+        return Err(ParseError::UnexpectedToken(lex.next()));
+    }
+    Ok(tree)
+}
+
 // Rule: `<F> ::= FuncIdent LParen <ArgList> RParen`
 fn func(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
     let token = expect!(Some(Token::FuncIdent(_)), lex)?;
@@ -188,14 +214,14 @@ fn arg(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
 }
 
 // Consume the current lookahead and advance the token
-// stream. Returns the consumed token or raises and error,
+// stream. Returns the consumed token or returns `None`
 // if the token stream has ended.
 #[inline]
 fn consume(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Token> {
     lex.next().ok_or(ParseError::UnexpectedEnd)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
     UnexpectedToken(Option<Token>),
     UnexpectedEnd,
@@ -204,11 +230,12 @@ pub enum ParseError {
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::UnexpectedToken(token) => {
-                write!(f, "unexpected token {token:?}")
+            Self::UnexpectedToken(token) => match token {
+                Some(t) => write!(f, "unexpected token {t}"),
+                None => write!(f, "unexpected missing token"),
             },
             Self::UnexpectedEnd => {
-                write!(f, "unexpected end")
+                write!(f, "unexpected end of input")
             },
         }
     }

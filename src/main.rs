@@ -20,6 +20,12 @@ fn main() {
         },
     };
 
-    let translation = nandu::translate(input).unwrap();
-    println!("{translation}");
+    let result = nandu::translate(input);
+    match result {
+        Ok(translation) => println!("{translation}"),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        },
+    };
 }

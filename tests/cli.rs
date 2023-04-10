@@ -45,3 +45,15 @@ fn cli_args_overwrite_pipe_inputs() -> DynResult {
         .stdout(predicate::str::contains("Nand(a, b)"));
     Ok(())
 }
+
+#[test]
+fn cli_error_if_trailing_parens() -> DynResult {
+    let mut cmd = Command::cargo_bin("nandu")?;
+    cmd.arg("Nand(a, b))"); // Input with trailing
+                            // parentheses.
+    cmd.assert()
+        .failure()
+        .stderr(predicates::str::contains("Error"))
+        .stderr(predicates::str::contains("')'"));
+    Ok(())
+}
