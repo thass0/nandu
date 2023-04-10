@@ -22,20 +22,23 @@ fn load_stdin() -> io::Result<String> {
 }
 
 fn main() {
+    env_logger::init();
+
     let mut args = env::args();
     args.next().unwrap(); // Ignore own name.
 
     let input = match args.next() {
         Some(input) => {
-            println!("Arg input: {input}");
+            log::info!("Input from argument:\n'{input}'");
             input
         },
         None => match load_stdin() {
             Ok(input) => {
-                println!("Pipe input: {input}");
+                log::info!("Input from stdin pipe:\n'{input}'");
                 input
             },
-            Err(_) => {
+            Err(e) => {
+                log::warn!("Aborting because of pipe error: {e}");
                 std::process::exit(1);
             },
         },
