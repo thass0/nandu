@@ -1,7 +1,9 @@
+use crate::parse::Id;
+
 // Single node in a tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
-    Func { id: String, args: Vec<Node> },
+    Func { id: Id, args: Vec<Node> },
     Var { id: String },
 }
 
@@ -14,38 +16,38 @@ impl Node {
                     arg.to_nand();
                 }
 
-                match id.as_ref() {
-                    "And" => {
+                match id {
+                    Id::And => {
                         debug_assert_eq!(args.len(), 2);
                         let nested_1 = Node::Func {
-                            id:   "Nand".to_owned(),
+                            id:   Id::Nand,
                             args: args.clone(),
                         };
                         let nested_2 = Node::Func {
-                            id:   "Nand".to_owned(),
+                            id:   Id::Nand,
                             args: args.clone(),
                         };
                         *self = Node::Func {
-                            id:   "Nand".to_owned(),
+                            id:   Id::Nand,
                             args: vec![nested_1, nested_2],
                         };
                     },
-                    "Or" => {
+                    Id::Or => {
                         debug_assert_eq!(args.len(), 2);
                         let nested_1 = Node::Func {
-                            id:   "Nand".to_owned(),
+                            id:   Id::Nand,
                             args: vec![args[0].clone(), args[0].clone()],
                         };
                         let nested_2 = Node::Func {
-                            id:   "Nand".to_owned(),
+                            id:   Id::Nand,
                             args: vec![args[1].clone(), args[1].clone()],
                         };
                         *self = Node::Func {
-                            id:   "Nand".to_owned(),
+                            id:   Id::Nand,
                             args: vec![nested_1, nested_2],
                         };
                     },
-                    _ => {},
+                    Id::Nand => {},
                 }
             },
             Node::Var { .. } => {},
@@ -80,22 +82,22 @@ mod tests {
     #[test]
     fn and_to_nand_works() {
         let mut and_tree = Node::Func {
-            id:   "And".to_owned(),
+            id:   Id::And,
             args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
                 id: "b".to_owned(),
             }],
         };
         let expected_nand_tree = Node::Func {
-            id:   "Nand".to_owned(),
+            id:   Id::Nand,
             args: vec![
                 Node::Func {
-                    id:   "Nand".to_owned(),
+                    id:   Id::Nand,
                     args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
                         id: "b".to_owned(),
                     }],
                 },
                 Node::Func {
-                    id:   "Nand".to_owned(),
+                    id:   Id::Nand,
                     args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
                         id: "b".to_owned(),
                     }],
@@ -109,22 +111,22 @@ mod tests {
     #[test]
     fn or_to_nand_works() {
         let mut or_tree = Node::Func {
-            id:   "Or".to_owned(),
+            id:   Id::Or,
             args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
                 id: "b".to_owned(),
             }],
         };
         let expected_nand_tree = Node::Func {
-            id:   "Nand".to_owned(),
+            id:   Id::Nand,
             args: vec![
                 Node::Func {
-                    id:   "Nand".to_owned(),
+                    id:   Id::Nand,
                     args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
                         id: "a".to_owned(),
                     }],
                 },
                 Node::Func {
-                    id:   "Nand".to_owned(),
+                    id:   Id::Nand,
                     args: vec![Node::Var { id: "b".to_owned() }, Node::Var {
                         id: "b".to_owned(),
                     }],
@@ -138,31 +140,31 @@ mod tests {
     #[test]
     fn generic_tree_to_nand_works() {
         let mut tree = Node::Func {
-            id:   "And".to_owned(),
+            id:   Id::And,
             args: vec![Node::Var { id: "a".to_owned() }, Node::Func {
-                id:   "Or".to_owned(),
+                id:   Id::Or,
                 args: vec![Node::Var { id: "b".to_owned() }, Node::Var {
                     id: "c".to_owned(),
                 }],
             }],
         };
         let expected_nand_tree = Node::Func {
-            id:   "Nand".to_owned(),
+            id:   Id::Nand,
             args: vec![
                 Node::Func {
-                    id:   "Nand".to_owned(),
+                    id:   Id::Nand,
                     args: vec![Node::Var { id: "a".to_owned() }, Node::Func {
-                        id:   "Nand".to_owned(),
+                        id:   Id::Nand,
                         args: vec![
                             Node::Func {
-                                id:   "Nand".to_owned(),
+                                id:   Id::Nand,
                                 args: vec![
                                     Node::Var { id: "b".to_owned() },
                                     Node::Var { id: "b".to_owned() },
                                 ],
                             },
                             Node::Func {
-                                id:   "Nand".to_owned(),
+                                id:   Id::Nand,
                                 args: vec![
                                     Node::Var { id: "c".to_owned() },
                                     Node::Var { id: "c".to_owned() },
@@ -172,19 +174,19 @@ mod tests {
                     }],
                 },
                 Node::Func {
-                    id:   "Nand".to_owned(),
+                    id:   Id::Nand,
                     args: vec![Node::Var { id: "a".to_owned() }, Node::Func {
-                        id:   "Nand".to_owned(),
+                        id:   Id::Nand,
                         args: vec![
                             Node::Func {
-                                id:   "Nand".to_owned(),
+                                id:   Id::Nand,
                                 args: vec![
                                     Node::Var { id: "b".to_owned() },
                                     Node::Var { id: "b".to_owned() },
                                 ],
                             },
                             Node::Func {
-                                id:   "Nand".to_owned(),
+                                id:   Id::Nand,
                                 args: vec![
                                     Node::Var { id: "c".to_owned() },
                                     Node::Var { id: "c".to_owned() },
@@ -202,7 +204,7 @@ mod tests {
     #[test]
     fn parse_simple_ast() {
         let mut token_stream = [
-            Token::FuncIdent("A".to_owned()),
+            Token::FuncIdent("And".to_owned()),
             Token::LParen,
             Token::VarIdent("a".to_owned()),
             Token::Delim,
@@ -212,7 +214,7 @@ mod tests {
         .into_iter()
         .peekable();
         let expected_tree = Node::Func {
-            id:   "A".to_owned(),
+            id:   Id::And,
             args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
                 id: "b".to_owned(),
             }],
@@ -224,14 +226,18 @@ mod tests {
     #[test]
     fn parse_nested_ast() {
         let mut token_stream = [
-            Token::FuncIdent("A".to_owned()),
+            Token::FuncIdent("And".to_owned()),
             Token::LParen,
-            Token::FuncIdent("B".to_owned()),
+            Token::FuncIdent("Or".to_owned()),
             Token::LParen,
-            Token::FuncIdent("C".to_owned()),
+            Token::FuncIdent("Nand".to_owned()),
             Token::LParen,
-            Token::VarIdent("c".to_string()),
+            Token::VarIdent("c".to_owned()),
+            Token::Delim,
+            Token::VarIdent("d".to_owned()),
             Token::RParen,
+            Token::Delim,
+            Token::VarIdent("b".to_owned()),
             Token::RParen,
             Token::Delim,
             Token::VarIdent("a".to_owned()),
@@ -240,14 +246,20 @@ mod tests {
         .into_iter()
         .peekable();
         let expected_tree = Node::Func {
-            id:   "A".to_owned(),
+            id:   Id::And,
             args: vec![
                 Node::Func {
-                    id:   "B".to_owned(),
-                    args: vec![Node::Func {
-                        id:   "C".to_owned(),
-                        args: vec![Node::Var { id: "c".to_owned() }],
-                    }],
+                    id:   Id::Or,
+                    args: vec![
+                        Node::Func {
+                            id:   Id::Nand,
+                            args: vec![
+                                Node::Var { id: "c".to_owned() },
+                                Node::Var { id: "d".to_owned() },
+                            ],
+                        },
+                        Node::Var { id: "b".to_owned() },
+                    ],
                 },
                 Node::Var { id: "a".to_owned() },
             ],
