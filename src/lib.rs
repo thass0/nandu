@@ -1,3 +1,7 @@
+#![feature(test)]
+
+extern crate test;
+
 mod lex;
 mod parse;
 mod tree;
@@ -21,4 +25,23 @@ pub fn translate(input: impl AsRef<str>) -> Result<String> {
     }
 
     inner(input.as_ref())
+}
+
+#[cfg(test)]
+mod tests {
+    use test::Bencher;
+
+    use super::*;
+
+    #[bench]
+    fn bench_lots_of_nested_ands(b: &mut Bencher) {
+        let ands = "And(a, b)\n";
+        let tokens: Vec<Token> = Token::lexer(ands).collect();
+        b.iter(|| {
+            let mut ast =
+                start(&mut tokens.iter().cloned().peekable()).unwrap();
+            ast.to_nand();
+            ast.to_string();
+        });
+    }
 }
