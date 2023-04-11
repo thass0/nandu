@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 
 use crate::lex::Token;
-use crate::tree::Tree;
+use crate::tree::Node;
 use crate::Result;
 
 // Parser subroutine to either consume the
@@ -20,7 +20,7 @@ macro_rules! expect {
 // Rule: `<S> ::= <F> end`.
 // `end` means that the input is over, so in
 // this case that `lex.peek` is `None`.
-pub fn start(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
+pub fn start(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Node> {
     let tree = func(lex)?;
     if lex.peek().is_none() {
         consume(lex).err();
@@ -31,13 +31,16 @@ pub fn start(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
 }
 
 // Rule: `<F> ::= FuncIdent LParen <ArgList> RParen`
-fn func(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
+fn func(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Node> {
     let token = expect!(Some(Token::FuncIdent(_)), lex)?;
     expect!(Some(Token::LParen), lex)?;
     let args = arg_list(lex)?;
     expect!(Some(Token::RParen), lex)?;
-    let tree = Tree::new(token, args);
-    Ok(tree)
+    let node = Node::Func {
+        id: token.into(),
+        args,
+    };
+    Ok(node)
 }
 
 // Rule: `<Arg> (Delim <Arg>)*`
@@ -46,7 +49,7 @@ fn func(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
 // as a list of branches.
 fn arg_list(
     lex: &mut Peekable<impl Iterator<Item = Token>>,
-) -> Result<Vec<Tree>> {
+) -> Result<Vec<Node>> {
     let mut args = vec![];
     args.push(arg(lex)?);
     while let Some(Token::Delim) = lex.peek() {
@@ -57,10 +60,11 @@ fn arg_list(
 }
 
 // Rule: `VarIdent | <F>`
-fn arg(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Tree> {
+fn arg(lex: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Node> {
     if let Some(Token::VarIdent(_)) = lex.peek() {
         let token = consume(lex)?;
-        Ok(Tree::leaf(token))
+        let node = Node::Var { id: token.into() };
+        Ok(node)
     } else if let Some(Token::FuncIdent(_)) = lex.peek() {
         func(lex)
     } else {

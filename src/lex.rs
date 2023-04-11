@@ -24,6 +24,20 @@ pub enum Token {
     LexError,
 }
 
+impl From<Token> for String {
+    // This function is used to convert the parsed tokens
+    // into tree nodes.
+    fn from(t: Token) -> Self {
+        match t {
+            Token::FuncIdent(id) | Token::VarIdent(id) => id,
+            Token::LParen => "LParen".to_owned(),
+            Token::RParen => "RParen".to_owned(),
+            Token::Delim => "Delim".to_owned(),
+            Token::LexError => "LexError".to_owned(),
+        }
+    }
+}
+
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {

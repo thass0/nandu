@@ -1,270 +1,202 @@
-use crate::lex::Token;
-
+// Single node in a tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Tree {
-    this:     Token,
-    branches: Vec<Tree>,
+pub enum Node {
+    Func { id: String, args: Vec<Node> },
+    Var { id: String },
 }
 
-impl Tree {
-    // Create a tree without any branches.
-    pub fn leaf(token: Token) -> Self {
-        Self {
-            this:     token,
-            branches: vec![],
+// implement all the tree transformations for Node
+impl Node {
+    pub fn to_nand(&mut self) {
+        match self {
+            Node::Func { id, args } => {
+                for arg in args.iter_mut() {
+                    arg.to_nand();
+                }
+
+                match id.as_ref() {
+                    "And" => {
+                        debug_assert_eq!(args.len(), 2);
+                        let nested_1 = Node::Func {
+                            id:   "Nand".to_owned(),
+                            args: args.clone(),
+                        };
+                        let nested_2 = Node::Func {
+                            id:   "Nand".to_owned(),
+                            args: args.clone(),
+                        };
+                        *self = Node::Func {
+                            id:   "Nand".to_owned(),
+                            args: vec![nested_1, nested_2],
+                        };
+                    },
+                    "Or" => {
+                        debug_assert_eq!(args.len(), 2);
+                        let nested_1 = Node::Func {
+                            id:   "Nand".to_owned(),
+                            args: vec![args[0].clone(), args[0].clone()],
+                        };
+                        let nested_2 = Node::Func {
+                            id:   "Nand".to_owned(),
+                            args: vec![args[1].clone(), args[1].clone()],
+                        };
+                        *self = Node::Func {
+                            id:   "Nand".to_owned(),
+                            args: vec![nested_1, nested_2],
+                        };
+                    },
+                    _ => {},
+                }
+            },
+            Node::Var { .. } => {},
         }
     }
+}
 
-    // Create a tree with a given set of branches.
-    pub fn new(token: Token, branches: Vec<Tree>) -> Self {
-        Self {
-            this: token,
-            branches,
+impl std::fmt::Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Node::Func { id, args } => {
+                let mut args_str = String::new();
+                for arg in args.iter().take(1) {
+                    args_str.push_str(&arg.to_string());
+                }
+                for arg in args.iter().skip(1) {
+                    args_str.push_str(&format!(", {arg}"));
+                }
+
+                write!(f, "{id}({args_str})")
+            },
+            Node::Var { id } => write!(f, "{id}"),
         }
     }
-}
-
-pub fn to_string(tree: Tree) -> String {
-    match tree.this {
-        Token::FuncIdent(id) => {
-            let mut buf = format!("{id}(");
-            let mut branches_iter = tree.branches.into_iter();
-            buf.push_str(&to_string(branches_iter.next().expect(
-                "valid parsed functions must contain at least one argument",
-            )));
-            for branch in branches_iter {
-                buf.push_str(&format!(", {}", to_string(branch)));
-            }
-            buf.push(')');
-            buf
-        },
-        Token::VarIdent(id) => id,
-        _ => panic!("unexpected token in tree branch"),
-    }
-}
-
-pub fn to_nand(mut tree: Tree) -> Tree {
-    let mut branches = Vec::with_capacity(tree.branches.len());
-    for branch in tree.branches.into_iter() {
-        branches.push(to_nand(branch));
-    }
-    tree.branches = branches;
-
-    if tree.this == Token::FuncIdent("And".to_owned()) {
-        and_to_nand(tree)
-    } else if tree.this == Token::FuncIdent("Or".to_owned()) {
-        or_to_nand(tree)
-    } else if tree.this == Token::FuncIdent("Nand".to_owned())
-        || tree.branches.is_empty()
-    {
-        tree
-    } else {
-        panic!("unexpected token in tree branch")
-    }
-}
-
-fn and_to_nand(mut and_tree: Tree) -> Tree {
-    assert_eq!(and_tree.this, Token::FuncIdent("And".to_owned()));
-    assert_eq!(and_tree.branches.len(), 2);
-
-    // Create two Nand trees from the And tree.
-    and_tree.this = Token::FuncIdent("Nand".to_owned());
-    let inner_nand_1 = and_tree.clone();
-    let inner_nand_2 = and_tree;
-
-    nand(vec![inner_nand_1, inner_nand_2])
-}
-
-fn or_to_nand(mut or_tree: Tree) -> Tree {
-    assert_eq!(or_tree.this, Token::FuncIdent("Or".to_owned()));
-    assert_eq!(or_tree.branches.len(), 2);
-
-    let arg_2 = or_tree.branches.pop().unwrap();
-    let arg_1 = or_tree.branches.pop().unwrap();
-    let inner_nand_1 = nand(vec![arg_1.clone(), arg_1]);
-    let inner_nand_2 = nand(vec![arg_2.clone(), arg_2]);
-    nand(vec![inner_nand_1, inner_nand_2])
-}
-
-// Helper to create a new Nand function tree
-#[inline]
-fn nand(args: Vec<Tree>) -> Tree {
-    Tree::new(Token::FuncIdent("Nand".to_owned()), args)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lex::Token;
 
     #[test]
     fn and_to_nand_works() {
-        let and_tree = Tree {
-            this:     Token::FuncIdent("And".to_owned()),
-            branches: vec![
-                Tree::leaf(Token::VarIdent("a".to_owned())),
-                Tree::leaf(Token::VarIdent("b".to_owned())),
-            ],
+        let mut and_tree = Node::Func {
+            id:   "And".to_owned(),
+            args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
+                id: "b".to_owned(),
+            }],
         };
-        let expected_nand_tree = Tree {
-            this:     Token::FuncIdent("Nand".to_owned()),
-            branches: vec![
-                Tree {
-                    this:     Token::FuncIdent("Nand".to_owned()),
-                    branches: vec![
-                        Tree::leaf(Token::VarIdent("a".to_owned())),
-                        Tree::leaf(Token::VarIdent("b".to_owned())),
-                    ],
+        let expected_nand_tree = Node::Func {
+            id:   "Nand".to_owned(),
+            args: vec![
+                Node::Func {
+                    id:   "Nand".to_owned(),
+                    args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
+                        id: "b".to_owned(),
+                    }],
                 },
-                Tree {
-                    this:     Token::FuncIdent("Nand".to_owned()),
-                    branches: vec![
-                        Tree::leaf(Token::VarIdent("a".to_owned())),
-                        Tree::leaf(Token::VarIdent("b".to_owned())),
-                    ],
+                Node::Func {
+                    id:   "Nand".to_owned(),
+                    args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
+                        id: "b".to_owned(),
+                    }],
                 },
             ],
         };
-        let result_nand_tree = and_to_nand(and_tree);
-        assert_eq!(result_nand_tree, expected_nand_tree);
+        and_tree.to_nand();
+        assert_eq!(and_tree, expected_nand_tree);
     }
 
     #[test]
     fn or_to_nand_works() {
-        let or_tree = Tree {
-            this:     Token::FuncIdent("Or".to_owned()),
-            branches: vec![
-                Tree::leaf(Token::VarIdent("a".to_owned())),
-                Tree::leaf(Token::VarIdent("b".to_owned())),
-            ],
+        let mut or_tree = Node::Func {
+            id:   "Or".to_owned(),
+            args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
+                id: "b".to_owned(),
+            }],
         };
-        let expected_nand_tree = Tree {
-            this:     Token::FuncIdent("Nand".to_owned()),
-            branches: vec![
-                Tree {
-                    this:     Token::FuncIdent("Nand".to_owned()),
-                    branches: vec![
-                        Tree::leaf(Token::VarIdent("a".to_owned())),
-                        Tree::leaf(Token::VarIdent("a".to_owned())),
-                    ],
+        let expected_nand_tree = Node::Func {
+            id:   "Nand".to_owned(),
+            args: vec![
+                Node::Func {
+                    id:   "Nand".to_owned(),
+                    args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
+                        id: "a".to_owned(),
+                    }],
                 },
-                Tree {
-                    this:     Token::FuncIdent("Nand".to_owned()),
-                    branches: vec![
-                        Tree::leaf(Token::VarIdent("b".to_owned())),
-                        Tree::leaf(Token::VarIdent("b".to_owned())),
-                    ],
+                Node::Func {
+                    id:   "Nand".to_owned(),
+                    args: vec![Node::Var { id: "b".to_owned() }, Node::Var {
+                        id: "b".to_owned(),
+                    }],
                 },
             ],
         };
-        let result_nand_tree = or_to_nand(or_tree);
-        assert_eq!(result_nand_tree, expected_nand_tree);
+        or_tree.to_nand();
+        assert_eq!(or_tree, expected_nand_tree);
     }
 
     #[test]
     fn generic_tree_to_nand_works() {
-        let tree = Tree {
-            this:     Token::FuncIdent("And".to_owned()),
-            branches: vec![Tree::leaf(Token::VarIdent("a".to_owned())), Tree {
-                this:     Token::FuncIdent("Or".to_owned()),
-                branches: vec![
-                    Tree::leaf(Token::VarIdent("b".to_owned())),
-                    Tree::leaf(Token::VarIdent("c".to_owned())),
-                ],
+        let mut tree = Node::Func {
+            id:   "And".to_owned(),
+            args: vec![Node::Var { id: "a".to_owned() }, Node::Func {
+                id:   "Or".to_owned(),
+                args: vec![Node::Var { id: "b".to_owned() }, Node::Var {
+                    id: "c".to_owned(),
+                }],
             }],
         };
-        let expected_nand_tree = Tree {
-            this:     Token::FuncIdent("Nand".to_owned()),
-            branches: vec![
-                Tree {
-                    this:     Token::FuncIdent("Nand".to_owned()),
-                    branches: vec![
-                        Tree::leaf(Token::VarIdent("a".to_owned())),
-                        Tree {
-                            this:     Token::FuncIdent("Nand".to_owned()),
-                            branches: vec![
-                                Tree {
-                                    this:     Token::FuncIdent(
-                                        "Nand".to_owned(),
-                                    ),
-                                    branches: vec![
-                                        Tree::leaf(Token::VarIdent(
-                                            "b".to_owned(),
-                                        )),
-                                        Tree::leaf(Token::VarIdent(
-                                            "b".to_owned(),
-                                        )),
-                                    ],
-                                },
-                                Tree {
-                                    this:     Token::FuncIdent(
-                                        "Nand".to_owned(),
-                                    ),
-                                    branches: vec![
-                                        Tree::leaf(Token::VarIdent(
-                                            "c".to_owned(),
-                                        )),
-                                        Tree::leaf(Token::VarIdent(
-                                            "c".to_owned(),
-                                        )),
-                                    ],
-                                },
-                            ],
-                        },
-                    ],
+        let expected_nand_tree = Node::Func {
+            id:   "Nand".to_owned(),
+            args: vec![
+                Node::Func {
+                    id:   "Nand".to_owned(),
+                    args: vec![Node::Var { id: "a".to_owned() }, Node::Func {
+                        id:   "Nand".to_owned(),
+                        args: vec![
+                            Node::Func {
+                                id:   "Nand".to_owned(),
+                                args: vec![
+                                    Node::Var { id: "b".to_owned() },
+                                    Node::Var { id: "b".to_owned() },
+                                ],
+                            },
+                            Node::Func {
+                                id:   "Nand".to_owned(),
+                                args: vec![
+                                    Node::Var { id: "c".to_owned() },
+                                    Node::Var { id: "c".to_owned() },
+                                ],
+                            },
+                        ],
+                    }],
                 },
-                Tree {
-                    this:     Token::FuncIdent("Nand".to_owned()),
-                    branches: vec![
-                        Tree::leaf(Token::VarIdent("a".to_owned())),
-                        Tree {
-                            this:     Token::FuncIdent("Nand".to_owned()),
-                            branches: vec![
-                                Tree {
-                                    this:     Token::FuncIdent(
-                                        "Nand".to_owned(),
-                                    ),
-                                    branches: vec![
-                                        Tree::leaf(Token::VarIdent(
-                                            "b".to_owned(),
-                                        )),
-                                        Tree::leaf(Token::VarIdent(
-                                            "b".to_owned(),
-                                        )),
-                                    ],
-                                },
-                                Tree {
-                                    this:     Token::FuncIdent(
-                                        "Nand".to_owned(),
-                                    ),
-                                    branches: vec![
-                                        Tree::leaf(Token::VarIdent(
-                                            "c".to_owned(),
-                                        )),
-                                        Tree::leaf(Token::VarIdent(
-                                            "c".to_owned(),
-                                        )),
-                                    ],
-                                },
-                            ],
-                        },
-                    ],
+                Node::Func {
+                    id:   "Nand".to_owned(),
+                    args: vec![Node::Var { id: "a".to_owned() }, Node::Func {
+                        id:   "Nand".to_owned(),
+                        args: vec![
+                            Node::Func {
+                                id:   "Nand".to_owned(),
+                                args: vec![
+                                    Node::Var { id: "b".to_owned() },
+                                    Node::Var { id: "b".to_owned() },
+                                ],
+                            },
+                            Node::Func {
+                                id:   "Nand".to_owned(),
+                                args: vec![
+                                    Node::Var { id: "c".to_owned() },
+                                    Node::Var { id: "c".to_owned() },
+                                ],
+                            },
+                        ],
+                    }],
                 },
             ],
         };
-        let result_nand_tree = to_nand(tree);
-        assert_eq!(result_nand_tree, expected_nand_tree);
-    }
-
-    #[test]
-    fn tree_leaf_create_tree_without_branches() {
-        // The specific token doesn't matter here.
-        let test_token = Token::VarIdent("blah".to_owned());
-        let automatic_leaf = Tree::leaf(test_token.clone());
-        let manual_leaf = Tree {
-            this:     test_token.clone(),
-            branches: vec![],
-        };
-        assert_eq!(automatic_leaf, manual_leaf);
+        tree.to_nand();
+        assert_eq!(tree, expected_nand_tree);
     }
 
     #[test]
@@ -279,12 +211,11 @@ mod tests {
         ]
         .into_iter()
         .peekable();
-        let expected_tree = Tree {
-            this:     Token::FuncIdent("A".to_owned()),
-            branches: vec![
-                Tree::leaf(Token::VarIdent("a".to_owned())),
-                Tree::leaf(Token::VarIdent("b".to_owned())),
-            ],
+        let expected_tree = Node::Func {
+            id:   "A".to_owned(),
+            args: vec![Node::Var { id: "a".to_owned() }, Node::Var {
+                id: "b".to_owned(),
+            }],
         };
         let result_tree = crate::parse::start(&mut token_stream).unwrap();
         assert_eq!(result_tree, expected_tree);
@@ -308,19 +239,17 @@ mod tests {
         ]
         .into_iter()
         .peekable();
-        let expected_tree = Tree {
-            this:     Token::FuncIdent("A".to_owned()),
-            branches: vec![
-                Tree {
-                    this:     Token::FuncIdent("B".to_owned()),
-                    branches: vec![Tree {
-                        this:     Token::FuncIdent("C".to_owned()),
-                        branches: vec![Tree::leaf(Token::VarIdent(
-                            "c".to_owned(),
-                        ))],
+        let expected_tree = Node::Func {
+            id:   "A".to_owned(),
+            args: vec![
+                Node::Func {
+                    id:   "B".to_owned(),
+                    args: vec![Node::Func {
+                        id:   "C".to_owned(),
+                        args: vec![Node::Var { id: "c".to_owned() }],
                     }],
                 },
-                Tree::leaf(Token::VarIdent("a".to_owned())),
+                Node::Var { id: "a".to_owned() },
             ],
         };
         let result_tree = crate::parse::start(&mut token_stream).unwrap();
